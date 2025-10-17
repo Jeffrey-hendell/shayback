@@ -9,7 +9,6 @@ class LoginHistoryController {
       if (req.user.id !== parseInt(userId) && req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Accès non autorisé' });
       }
-
       const history = await LoginHistory.findByUserId(userId);
       
       res.json({

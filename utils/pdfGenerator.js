@@ -9,8 +9,10 @@ class PDFGenerator {
       accent: '#e74c3c',
       success: '#27ae60',
       lightGray: '#f8f9fa',
+      mediumGray: '#ecf0f1',
       darkGray: '#7f8c8d',
-      white: '#ffffff'
+      white: '#ffffff',
+      border: '#bdc3c7'
     };
   }
 
@@ -21,10 +23,10 @@ class PDFGenerator {
           margin: 50,
           size: 'A4',
           info: {
-            Title: `Facture ${sale.invoice_number}`,
-            Author: 'JHY Solutions',
+            Title: `Shaybusiness`,
+            Author: 'Shay Business',
             Subject: 'Facture client',
-            Creator: 'JHY Solutions Invoice System',
+            Creator: 'Shay Business Invoice System',
             CreationDate: new Date()
           }
         });
@@ -49,32 +51,31 @@ class PDFGenerator {
   }
 
   _generateHeader(doc, sale) {
-    // En-tête avec dégradé simulé
+    // En-tête avec design moderne
     doc.fillColor(this.colors.primary)
-       .rect(0, 0, doc.page.width, 120)
+       .rect(0, 0, doc.page.width, 100)
        .fill();
 
     // Logo et nom de l'entreprise
     doc.fillColor(this.colors.white)
-       .fontSize(24)
+       .fontSize(22)
        .font('Helvetica-Bold')
-       .text('JHY SOLUTIONS', 50, 40);
+       .text('SHAY BUSINESS', 50, 35);
 
-    doc.fillColor(this.colors.white)
-       .fontSize(10)
+    doc.fillColor('rgba(255,255,255,0.8)')
+       .fontSize(9)
        .font('Helvetica')
-       .text('Votre partenaire technologique de confiance', 50, 70)
-       .text('SAS au capital de 150 000 €', 50, 85);
+       .text('Votre partenaire technologique de confiance', 50, 60)
 
     // Numéro de facture et dates
-    const rightColumnX = 400;
+    const rightColumnX = 350;
     
     doc.fillColor(this.colors.white)
-       .fontSize(16)
+       .fontSize(18)
        .font('Helvetica-Bold')
-       .text('FACTURE', rightColumnX, 40);
+       .text('FACTURE', rightColumnX, 35);
 
-    this._createInfoBox(doc, rightColumnX, 65, [
+    this._createInfoBox(doc, rightColumnX, 60, [
       { label: 'N° Facture', value: sale.invoice_number },
       { label: 'Date', value: moment(sale.created_at).format('DD/MM/YYYY') },
       { label: 'Échéance', value: moment(sale.due_date || sale.created_at).add(30, 'days').format('DD/MM/YYYY') }
@@ -82,15 +83,19 @@ class PDFGenerator {
   }
 
   _generateCustomerInfo(doc, sale) {
-    const startY = 150;
+    const startY = 130;
     
-    // Informations client
-    doc.fillColor(this.colors.primary)
-       .fontSize(12)
-       .font('Helvetica-Bold')
-       .text('FACTURÉ À', 50, startY);
+    // Box client avec fond
+    doc.fillColor(this.colors.mediumGray)
+       .roundedRect(50, startY, 250, 80, 5)
+       .fill();
 
-    this._createAddressBox(doc, 50, startY + 20, {
+    doc.fillColor(this.colors.primary)
+       .fontSize(11)
+       .font('Helvetica-Bold')
+       .text('CLIENT', 60, startY + 15);
+
+    this._createAddressBox(doc, 60, startY + 35, {
       name: sale.customer_name,
       email: sale.customer_email,
       phone: sale.customer_phone,
@@ -99,41 +104,39 @@ class PDFGenerator {
       zipCode: sale.customer_zip
     });
 
-    // Informations vendeur
-    doc.fillColor(this.colors.primary)
-       .fontSize(12)
-       .font('Helvetica-Bold')
-       .text('ÉMETTEUR', 300, startY);
+    // Box émetteur avec fond
+    doc.fillColor(this.colors.mediumGray)
+       .roundedRect(320, startY, 230, 80, 5)
+       .fill();
 
-    this._createAddressBox(doc, 300, startY + 20, {
-      name: 'JHY SOLUTIONS',
+    doc.fillColor(this.colors.primary)
+       .fontSize(11)
+       .font('Helvetica-Bold')
+       .text('ÉMETTEUR', 330, startY + 15);
+
+    this._createAddressBox(doc, 330, startY + 35, {
+      name: 'SHAY BUSINESS',
       email: 'contact@jhysolutions.com',
-      phone: '+33 1 23 45 67 89',
-      address: '123 Avenue des Champs-Élysées',
-      city: '75008 Paris',
-      siret: '123 456 789 00012',
-      vat: 'FR 12 34567 89'
     });
   }
 
   _generateInvoiceTable(doc, sale) {
-    const tableTop = 280;
+    const tableTop = 240;
     
-    // En-tête du tableau
+    // En-tête du tableau avec style moderne
     doc.fillColor(this.colors.primary)
-       .rect(50, tableTop, 500, 25)
+       .roundedRect(50, tableTop, 500, 25, 3)
        .fill();
 
     doc.fillColor(this.colors.white)
        .fontSize(10)
        .font('Helvetica-Bold')
        .text('DESCRIPTION', 60, tableTop + 8)
-       .text('QTÉ', 300, tableTop + 8)
-       .text('PRIX UNIT.', 350, tableTop + 8)
-       .text('TVA', 420, tableTop + 8)
-       .text('TOTAL HT', 470, tableTop + 8);
+       .text('QTÉ', 320, tableTop + 8)
+       .text('PRIX UNIT.', 370, tableTop + 8)
+       .text('TOTAL', 470, tableTop + 8);
 
-    // Articles
+    // Articles avec alternance de couleurs
     let currentY = tableTop + 25;
     
     sale.items.forEach((item, index) => {
@@ -141,60 +144,59 @@ class PDFGenerator {
       
       if (isEven) {
         doc.fillColor(this.colors.lightGray)
-           .rect(50, currentY, 500, 20)
+           .rect(50, currentY, 500, 25)
            .fill();
       }
 
-      const vatRate = item.vat_rate || 20;
-      const vatAmount = (item.subtotal * vatRate) / 100;
-      const subtotalHT = item.subtotal - vatAmount;
+      // Bordures des lignes
+      doc.strokeColor(this.colors.border)
+         .lineWidth(0.3)
+         .rect(50, currentY, 500, 25)
+         .stroke();
 
       doc.fillColor(this.colors.primary)
          .fontSize(9)
          .font('Helvetica')
-         .text(item.name, 60, currentY + 5, { width: 230 })
-         .text(item.quantity.toString(), 300, currentY + 5)
-         .text(`${this._formatCurrency(item.unit_price)}`, 350, currentY + 5)
-         .text(`${vatRate}%`, 420, currentY + 5)
-         .text(`${this._formatCurrency(subtotalHT)}`, 470, currentY + 5);
+         .text(item.name, 60, currentY + 8, { width: 240 })
+         .text(item.quantity.toString(), 320, currentY + 8)
+         .text(`${this._formatCurrency(item.unit_price)}`, 370, currentY + 8)
+         .text(`${this._formatCurrency(item.subtotal)}`, 470, currentY + 8);
 
-      currentY += 20;
+      currentY += 25;
 
-      // Description supplémentaire si elle existe
+      // Description supplémentaire
       if (item.description) {
         doc.fillColor(this.colors.darkGray)
            .fontSize(8)
-           .text(item.description, 60, currentY, { width: 230 });
-        currentY += 15;
+           .text(item.description, 60, currentY - 5, { width: 240 });
+        currentY += 10;
       }
     });
 
-    // Ligne séparatrice
-    doc.moveTo(50, currentY + 10)
-       .lineTo(550, currentY + 10)
-       .strokeColor(this.colors.darkGray)
-       .lineWidth(0.5)
-       .stroke();
-
-    this._lastTableY = currentY + 20;
+    this._lastTableY = currentY + 10;
   }
 
   _generateTotals(doc, sale) {
     const startY = this._lastTableY;
-    const rightColumnX = 400;
+    const rightColumnX = 350;
 
     const totals = this._calculateTotals(sale.items);
 
     const totalLines = [
-      { label: 'Total HT', value: totals.totalHT },
+      { label: 'Sous-total HT', value: totals.totalHT },
       { label: 'TVA (20%)', value: totals.totalVAT },
       { label: 'Total TTC', value: totals.totalTTC, bold: true },
       { label: 'Escompte', value: -(sale.discount || 0) },
-      { label: 'Total à payer', value: totals.totalTTC - (sale.discount || 0), bold: true, accent: true }
+      { label: 'TOTAL À PAYER', value: totals.totalTTC - (sale.discount || 0), bold: true, accent: true }
     ];
 
+    // Box des totaux
+    doc.fillColor(this.colors.mediumGray)
+       .roundedRect(rightColumnX - 10, startY + 50, 210, totalLines.length * 20 + 20, 5)
+       .fill();
+
     totalLines.forEach((line, index) => {
-      const y = startY + (index * 20);
+      const y = startY + (index * 20) + 60;
       
       if (line.bold) {
         doc.font('Helvetica-Bold');
@@ -204,60 +206,67 @@ class PDFGenerator {
 
       if (line.accent) {
         doc.fillColor(this.colors.accent);
+        doc.fontSize(12);
       } else {
         doc.fillColor(this.colors.primary);
+        doc.fontSize(10);
       }
 
-      doc.fontSize(10)
-         .text(line.label, rightColumnX, y)
-         .text(this._formatCurrency(line.value), rightColumnX + 100, y);
+      doc.text(line.label, rightColumnX, y)
+         .text(this._formatCurrency(line.value), rightColumnX + 120, y);
     });
   }
 
   _generatePaymentInfo(doc, sale) {
-    const startY = this._lastTableY + 120;
+    const startY = this._lastTableY + 200;
+
+    // Box informations de paiement
+    doc.fillColor(this.colors.mediumGray)
+       .roundedRect(50, startY, 500, 80, 5)
+       .fill();
 
     doc.fillColor(this.colors.primary)
        .fontSize(11)
        .font('Helvetica-Bold')
-       .text('INFORMATIONS DE PAIEMENT', 50, startY);
+       .text('INFORMATIONS DE PAIEMENT', 60, startY + 15);
 
     doc.fillColor(this.colors.darkGray)
        .fontSize(9)
        .font('Helvetica')
-       .text(`Méthode: ${sale.payment_method.toUpperCase()}`, 50, startY + 20)
-       .text(`Statut: ${sale.payment_status || 'PAYÉ'}`, 50, startY + 35)
-       .text(`Date de paiement: ${moment(sale.payment_date || sale.created_at).format('DD/MM/YYYY')}`, 50, startY + 50);
+       .text(`Méthode: ${sale.payment_method.toUpperCase()}`, 60, startY + 35)
+       .text(`Statut: ${sale.payment_status || 'PAYÉ'}`, 60, startY + 50)
+       .text(`Date de paiement: ${moment(sale.payment_date || sale.created_at).format('DD/MM/YYYY')}`, 60, startY + 65);
 
-    // Instructions de paiement
-    if (sale.payment_method.toLowerCase() === 'virement') {
-      doc.text('Veuillez effectuer le virement sur le compte suivant:', 50, startY + 75)
-         .text('IBAN: FR76 1234 5678 9123 4567 8901 234', 50, startY + 90)
-         .text('BIC: ABCDFRPP', 50, startY + 105);
-    }
 
     // Message de remerciement
     doc.fillColor(this.colors.success)
        .fontSize(10)
-       .font('Helvetica-Oblique')
-       .text('Merci pour votre confiance !', 400, startY + 30);
+       .font('Helvetica-Bold')
+       .text('Merci pour votre confiance !', 400, startY + 15);
   }
 
   _generateFooter(doc, sale) {
-    const footerY = doc.page.height - 80;
+    const footerY = doc.page.height - 60;
 
+    // Ligne séparatrice
     doc.moveTo(50, footerY)
        .lineTo(550, footerY)
-       .strokeColor(this.colors.darkGray)
+       .strokeColor(this.colors.border)
        .lineWidth(0.5)
        .stroke();
 
-    doc.fillColor(this.colors.darkGray)
-       .fontSize(8)
-       .text('JHY Solutions - SAS au capital de 150 000 € - RC Paris B 123 456 789', 50, footerY + 10)
-       .text('123 Avenue des Champs-Élysées, 75008 Paris - Tel: +33 1 23 45 67 89', 50, footerY + 25)
-       .text('Email: contact@jhysolutions.com - Site: www.jhysolutions.com', 50, footerY + 40)
-       .text(`Facture générée le ${moment().format('DD/MM/YYYY à HH:mm')}`, 500, footerY + 40, { align: 'right' });
+    // Informations de pied de page
+    doc.fillColor(this.colors.white)
+       .fontSize(7)
+
+       .text('#00 Cap Haitien, Haiti - Tel: +50900000000', 50, 75, {
+         width: 500,
+         align: 'left'
+       })
+       .text(`Facture générée le ${moment().format('DD/MM/YYYY à HH:mm')}`, 50, 88, {
+         width: 500,
+         align: 'left'
+       });
   }
 
   _generateWatermark(doc, sale) {
@@ -290,34 +299,34 @@ class PDFGenerator {
        .font('Helvetica-Bold')
        .text(address.name, x, y);
 
-    let currentY = y + 15;
+    let currentY = y + 12;
     
     if (address.email) {
       doc.font('Helvetica')
-         .fontSize(9)
+         .fontSize(8)
          .fillColor(this.colors.darkGray)
          .text(address.email, x, currentY);
-      currentY += 12;
+      currentY += 10;
     }
 
     if (address.phone) {
       doc.text(address.phone, x, currentY);
-      currentY += 12;
+      currentY += 10;
     }
 
     if (address.address) {
       doc.text(address.address, x, currentY);
-      currentY += 12;
+      currentY += 10;
     }
 
     if (address.city) {
       doc.text(address.city, x, currentY);
-      currentY += 12;
+      currentY += 10;
     }
 
     if (address.siret) {
       doc.text(`SIRET: ${address.siret}`, x, currentY);
-      currentY += 12;
+      currentY += 10;
     }
 
     if (address.vat) {
@@ -347,10 +356,9 @@ class PDFGenerator {
 
   _formatCurrency(amount) {
     return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2
-    }).format(amount);
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount) + ' GDS';
   }
 }
 

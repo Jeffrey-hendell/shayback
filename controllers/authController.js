@@ -16,7 +16,7 @@ class AuthController {
       // Préparer les données pour l'historique
       const loginData = {
         user_id: user ? user.id : null,
-        ip_address: req.ip || req.connection.remoteAddress,
+        ip_address: req.clientIp,
         user_agent: req.get('User-Agent'),
         device_type: this.extractDeviceInfo(req.get('User-Agent')),
         success: false
@@ -73,14 +73,16 @@ class AuthController {
 
       // Préparer les informations de connexion pour l'email
       const loginInfo = {
-        ip: req.ip || req.connection.remoteAddress,
+        ip: req.clientIp,
         userAgent: req.get('User-Agent'),
         device_type: loginData.device_type,
         timestamp: new Date()
       };
+ 
+      // console.log('🧾 IP détectée:', req.clientIp);
 
       // Envoyer une notification uniquement pour les vendeurs
-      if (user.role === 'seller') {
+      if (user.role === 'seller' || 'asdmin') {
         await emailService.sendSellerLoginNotification(user, loginInfo);
       }
 

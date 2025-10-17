@@ -40,7 +40,6 @@ class AdminController {
         email,
         password: hashedPassword,
         name,
-        role: 'seller',
         created_by: req.user.id,
         phone: phone || null,
         nif: nif || null,

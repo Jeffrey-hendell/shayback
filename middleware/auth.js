@@ -9,16 +9,16 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ error: 'Token d\'accès manquant' });
     }
 
-    console.log('🔐 Token reçu:', token);
+    // console.log('🔐 Token reçu:', token);
     
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('📄 Token décodé:', decoded);
+    // console.log('📄 Token décodé:', decoded);
     
     const user = await User.findById(decoded.userId);
-    console.log('👤 Utilisateur trouvé:', user);
+    // console.log('👤 Utilisateur trouvé:', user);
     
     if (!user) {
-      console.log('❌ Utilisateur non trouvé avec ID:', decoded.userId);
+      // console.log('❌ Utilisateur non trouvé avec ID:', decoded.userId);
       return res.status(401).json({ error: 'Utilisateur non trouvé' });
     }
 
