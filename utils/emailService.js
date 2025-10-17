@@ -1,19 +1,39 @@
+// utils/emailService.js
 const brevo = require('@getbrevo/brevo');
 const moment = require('moment');
 
 class EmailService {
   constructor() {
-    // Configuration correcte pour @getbrevo/brevo
+    // Configuration pour la nouvelle version de Brevo
+    this.apiKey = process.env.BREVO_API_KEY;
+    
+    if (!this.apiKey) {
+      console.error('❌ BREVO_API_KEY manquante dans les variables d\'environnement');
+      return;
+    }
+    
+    // Initialisation correcte pour la nouvelle API Brevo
     this.apiInstance = new brevo.TransactionalEmailsApi();
     
-    // Configurez l'API key
-    this.apiInstance.setDefaultAuthentication(process.env.BREVO_API_KEY);
+    // Configuration de l'authentification
+    this.apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, this.apiKey);
+    
+    console.log('✅ Service Brevo initialisé');
   }
 
+  /**
+   * Envoie une notification de vente
+   */
   async sendSaleNotification(saleData) {
     try {
+
       const { invoice_number, customer_name, customer_email, total_amount, items, seller_name, created_at, payment_method } = saleData;
       
+      // Validation des données requises
+      if (!process.env.BREVO_SENDER_EMAIL || !process.env.ADMIN_EMAIL) {
+        throw new Error('Configuration email manquante');
+      }
+
       const itemsList = items.map(item => 
         `<tr>
           <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">${item.name}</td>
@@ -23,27 +43,49 @@ class EmailService {
         </tr>`
       ).join('');
 
-      const sendSmtpEmail = new brevo.SendSmtpEmail();
-      sendSmtpEmail.sender = {
-        email: process.env.BREVO_SENDER_EMAIL,
-        name: process.env.BREVO_SENDER_NAME
+      // Création de l'objet email
+      const sendSmtpEmail = {
+        sender: {
+          email: process.env.BREVO_SENDER_EMAIL,
+          name: process.env.BREVO_SENDER_NAME || 'JHY Solutions'
+        },
+        to: [{
+          email: process.env.ADMIN_EMAIL,
+          name: 'Administrateur'
+        }],
+        subject: `Nouvelle vente - Facture ${invoice_number}`,
+        htmlContent: this.generateEmailTemplate(saleData, itemsList),
+        tags: ['vente', 'notification', 'facture']
       };
-      sendSmtpEmail.to = [{
-        email: process.env.ADMIN_EMAIL,
-        name: 'Administrateur'
-      }];
-      sendSmtpEmail.subject = `Nouvelle vente - Facture ${invoice_number}`;
-      sendSmtpEmail.htmlContent = this.generateEmailTemplate(saleData, itemsList);
 
-      const response = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
-      console.log('Email envoyé avec Brevo:', response);
+      
+      // Envoi de l'email
+      const data = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+      return data;
       
     } catch (error) {
-      console.error('Erreur Brevo:', error);
-      throw new Error('Erreur lors de l\'envoi de l\'email');
+      console.error('❌ Erreur détaillée Brevo:');
+      
+      if (error.response) {
+        console.error('📡 Response error:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          body: error.response.body,
+          headers: error.response.headers
+        });
+      } else if (error.message) {
+        console.error('💬 Error message:', error.message);
+      } else {
+        console.error('🔧 Unknown error:', error);
+      }
+      
+      throw new Error(`Erreur envoi email: ${error.message}`);
     }
   }
 
+  /**
+   * Génère le template HTML pour l'email de vente
+   */
   generateEmailTemplate(saleData, itemsList) {
     const { invoice_number, customer_name, customer_email, total_amount, seller_name, created_at, payment_method } = saleData;
 
@@ -294,7 +336,7 @@ class EmailService {
         <div class="email-container">
           <div class="email-header">
             <h1>NOUVELLE VENTE EFFECTUÉE</h1>
-            <p>JHY Solutions - Système de Gestion Commerciale</p>
+            <p>Shay Solutions - Système de Gestion Commerciale</p>
           </div>
           
           <div class="email-body">
@@ -357,20 +399,14 @@ class EmailService {
               <div class="total-label">MONTANT TOTAL</div>
               <div class="total-value">${total_amount} GDS</div>
             </div>
-            
-            <div class="wisdom-section">
-              <div class="wisdom-title">Réflexion du Jour</div>
-              <div class="wisdom-content">
-                "Le succès n'est pas final, l'échec n'est pas fatal : c'est le courage de continuer qui compte." - Winston Churchill
-              </div>
-            </div>
+
           </div>
           
           <div class="email-footer">
-            <div class="company-name">JHY SOLUTIONS</div>
+            <div class="company-name">SHAY SOLUTIONS</div>
             <div class="company-tagline">Votre partenaire de confiance pour la gestion commerciale</div>
             <div class="contact-info">
-              ${process.env.EMAIL_TO} • www.jhysolutions.com
+              ${process.env.ADMIN_EMAIL || 'contact@jhysolutions.com'} • www.shaysolutions.com
             </div>
             <div class="auto-notice">
               Cet email a été généré automatiquement par le système de vente JHY Solutions
@@ -382,268 +418,293 @@ class EmailService {
     `;
   }
 
+  /**
+   * Envoie un email de bienvenue au vendeur
+   */
   async sendWelcomeSeller(sellerData) {
     try {
       const { email, name, password } = sellerData;
       
-      const sendSmtpEmail = new brevo.SendSmtpEmail();
-      sendSmtpEmail.sender = {
-        email: process.env.BREVO_SENDER_EMAIL,
-        name: process.env.BREVO_SENDER_NAME
+      const sendSmtpEmail = {
+        sender: {
+          email: process.env.BREVO_SENDER_EMAIL,
+          name: process.env.BREVO_SENDER_NAME || 'JHY Solutions'
+        },
+        to: [{
+          email: email,
+          name: name
+        }],
+        subject: 'Bienvenue sur notre plateforme de vente',
+        htmlContent: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { 
+                font-family: 'Inter', Arial, sans-serif; 
+                background: #f8fafc; 
+                margin: 0; 
+                padding: 0; 
+              }
+              .container { 
+                max-width: 600px; 
+                margin: 0 auto; 
+                background: #ffffff; 
+                border-radius: 12px; 
+                overflow: hidden; 
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+              }
+              .header { 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                color: white; 
+                padding: 40px; 
+                text-align: center; 
+              }
+              .content { 
+                padding: 40px; 
+                background: #ffffff; 
+              }
+              .welcome-title { 
+                font-size: 28px; 
+                font-weight: 700; 
+                color: #2d3748; 
+                margin-bottom: 16px; 
+              }
+              .info-card { 
+                background: #f7fafc; 
+                padding: 24px; 
+                border-radius: 8px; 
+                border-left: 4px solid #48bb78; 
+                margin: 20px 0; 
+              }
+              .warning { 
+                background: #fed7d7; 
+                color: #c53030; 
+                padding: 16px; 
+                border-radius: 6px; 
+                border-left: 4px solid #e53e3e; 
+                margin: 20px 0; 
+                font-weight: 600; 
+              }
+              .footer { 
+                background: #2d3748; 
+                color: #ffffff; 
+                padding: 30px; 
+                text-align: center; 
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Bienvenue ${name}</h1>
+                <p>Plateforme de Gestion Commerciale</p>
+              </div>
+              <div class="content">
+                <div class="welcome-title">Votre compte vendeur a été créé</div>
+                <p>Nous sommes ravis de vous accueillir sur notre plateforme de vente.</p>
+                
+                <div class="info-card">
+                  <strong>Email:</strong> ${email}<br>
+                  <strong>Mot de passe temporaire:</strong> ${password}
+                </div>
+                
+                <div class="warning">
+                  Veuillez changer votre mot de passe après votre première connexion.
+                </div>
+                
+                <p>Vous pouvez maintenant vous connecter à notre système de vente et commencer à gérer vos transactions.</p>
+              </div>
+              <div class="footer">
+                <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">JHY SOLUTIONS</div>
+                <div style="font-size: 14px; opacity: 0.8;">Votre succès, notre priorité</div>
+              </div>
+            </div>
+          </body>
+          </html>
+        `,
+        tags: ['bienvenue', 'vendeur']
       };
-      sendSmtpEmail.to = [{
-        email: email,
-        name: name
-      }];
-      sendSmtpEmail.subject = 'Bienvenue sur notre plateforme de vente';
-      sendSmtpEmail.htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { 
-              font-family: 'Inter', Arial, sans-serif; 
-              background: #f8fafc; 
-              margin: 0; 
-              padding: 0; 
-            }
-            .container { 
-              max-width: 600px; 
-              margin: 0 auto; 
-              background: #ffffff; 
-              border-radius: 12px; 
-              overflow: hidden; 
-              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
-            }
-            .header { 
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-              color: white; 
-              padding: 40px; 
-              text-align: center; 
-            }
-            .content { 
-              padding: 40px; 
-              background: #ffffff; 
-            }
-            .welcome-title { 
-              font-size: 28px; 
-              font-weight: 700; 
-              color: #2d3748; 
-              margin-bottom: 16px; 
-            }
-            .info-card { 
-              background: #f7fafc; 
-              padding: 24px; 
-              border-radius: 8px; 
-              border-left: 4px solid #48bb78; 
-              margin: 20px 0; 
-            }
-            .warning { 
-              background: #fed7d7; 
-              color: #c53030; 
-              padding: 16px; 
-              border-radius: 6px; 
-              border-left: 4px solid #e53e3e; 
-              margin: 20px 0; 
-              font-weight: 600; 
-            }
-            .footer { 
-              background: #2d3748; 
-              color: #ffffff; 
-              padding: 30px; 
-              text-align: center; 
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Bienvenue ${name}</h1>
-              <p>Plateforme de Gestion Commerciale</p>
-            </div>
-            <div class="content">
-              <div class="welcome-title">Votre compte vendeur a été créé</div>
-              <p>Nous sommes ravis de vous accueillir sur notre plateforme de vente.</p>
-              
-              <div class="info-card">
-                <strong>Email:</strong> ${email}<br>
-                <strong>Mot de passe temporaire:</strong> ${password}
-              </div>
-              
-              <div class="warning">
-                Veuillez changer votre mot de passe après votre première connexion.
-              </div>
-              
-              <p>Vous pouvez maintenant vous connecter à notre système de vente et commencer à gérer vos transactions.</p>
-            </div>
-            <div class="footer">
-              <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">JHY SOLUTIONS</div>
-              <div style="font-size: 14px; opacity: 0.8;">Votre succès, notre priorité</div>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
 
-      await this.apiInstance.sendTransacEmail(sendSmtpEmail);
-      console.log('Email de bienvenue envoyé au vendeur');
+      const response = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+      console.log('✅ Email de bienvenue envoyé au vendeur');
+      return response;
       
     } catch (error) {
-      console.error('Erreur email de bienvenue:', error);
+      console.error('❌ Erreur email de bienvenue:', error);
+      throw error;
     }
   }
 
+  /**
+   * Envoie une notification de connexion vendeur
+   */
   async sendSellerLoginNotification(sellerData, loginInfo) {
     try {
       const { name, email } = sellerData;
       const { ip, userAgent, timestamp } = loginInfo;
 
-      const sendSmtpEmail = new brevo.SendSmtpEmail();
-      sendSmtpEmail.sender = {
-        email: process.env.BREVO_SENDER_EMAIL,
-        name: process.env.BREVO_SENDER_NAME
+      const sendSmtpEmail = {
+        sender: {
+          email: process.env.BREVO_SENDER_EMAIL,
+          name: process.env.BREVO_SENDER_NAME || 'Shay Solutions'
+        },
+        to: [{
+          email: process.env.ADMIN_EMAIL,
+          name: 'Administrateur'
+        }],
+        subject: `Connexion vendeur - ${name}`,
+        htmlContent: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #FF6B00; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; background: #f9f9f9; }
+              .info-box { background: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
+              .alert { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 10px; border-radius: 5px; }
+              .footer { text-align: center; margin-top: 20px; color: #666; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>CONNEXION VENDEUR</h1>
+              </div>
+              <div class="content">
+                <div class="info-box">
+                  <h3>Informations du vendeur</h3>
+                  <p><strong>Nom:</strong> ${name}</p>
+                  <p><strong>Email:</strong> ${email}</p>
+                </div>
+                
+                <div class="info-box">
+                  <h3>Détails de la connexion</h3>
+                  <p><strong>Date et heure:</strong> ${moment(timestamp).format('DD/MM/YYYY à HH:mm:ss')}</p>
+                  <p><strong>Adresse IP:</strong> ${ip || 'Non disponible'}</p>
+                  <p><strong>Appareil/Navigateur:</strong> ${userAgent || 'Non disponible'}</p>
+                </div>
+                
+                <div class="alert">
+                  <strong>⚠️ Notification de sécurité</strong>
+                  <p>Si cette connexion vous semble suspecte, veuillez vérifier immédiatement l'activité du compte.</p>
+                </div>
+                
+                <div class="footer">
+                  <p>Notification automatique - Système de vente</p>
+                  <p>${moment().format('DD/MM/YYYY HH:mm')}</p>
+                </div>
+              </div>
+            </div>
+          </body>
+          </html>
+        `,
+        tags: ['connexion', 'vendeur']
       };
-      sendSmtpEmail.to = [{
-        email: process.env.ADMIN_EMAIL,
-        name: 'Administrateur'
-      }];
-      sendSmtpEmail.subject = `Connexion vendeur - ${name}`;
-      sendSmtpEmail.htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #FF6B00; color: white; padding: 20px; text-align: center; }
-            .content { padding: 20px; background: #f9f9f9; }
-            .info-box { background: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
-            .alert { background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 10px; border-radius: 5px; }
-            .footer { text-align: center; margin-top: 20px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>CONNEXION VENDEUR</h1>
-            </div>
-            <div class="content">
-              <div class="info-box">
-                <h3>Informations du vendeur</h3>
-                <p><strong>Nom:</strong> ${name}</p>
-                <p><strong>Email:</strong> ${email}</p>
-              </div>
-              
-              <div class="info-box">
-                <h3>Détails de la connexion</h3>
-                <p><strong>Date et heure:</strong> ${moment(timestamp).format('DD/MM/YYYY à HH:mm:ss')}</p>
-                <p><strong>Adresse IP:</strong> ${ip || 'Non disponible'}</p>
-                <p><strong>Appareil/Navigateur:</strong> ${userAgent || 'Non disponible'}</p>
-              </div>
-              
-              <div class="alert">
-                <strong>⚠️ Notification de sécurité</strong>
-                <p>Si cette connexion vous semble suspecte, veuillez vérifier immédiatement l'activité du compte.</p>
-              </div>
-              
-              <div class="footer">
-                <p>Notification automatique - Système de vente</p>
-                <p>${moment().format('DD/MM/YYYY HH:mm')}</p>
-              </div>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
 
-      await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+      const response = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+      console.log('✅ Notification connexion vendeur envoyée');
+      return response;
       
     } catch (error) {
       console.error('❌ Erreur notification connexion:', error);
+      throw error;
     }
   }
 
+  /**
+   * Envoie une alerte de connexion suspecte
+   */
   async sendSuspiciousLoginAlert(sellerData, loginInfo) {
     try {
       const { name, email } = sellerData;
       const { ip, location, device_type, reason } = loginInfo;
 
-      const sendSmtpEmail = new brevo.SendSmtpEmail();
-      sendSmtpEmail.sender = {
-        email: process.env.BREVO_SENDER_EMAIL,
-        name: process.env.BREVO_SENDER_NAME
+      const sendSmtpEmail = {
+        sender: {
+          email: process.env.BREVO_SENDER_EMAIL,
+          name: process.env.BREVO_SENDER_NAME || 'JHY Solutions'
+        },
+        to: [{
+          email: process.env.ADMIN_EMAIL,
+          name: 'Administrateur'
+        }],
+        subject: `🚨 ALERTE - Connexion suspecte - ${name}`,
+        htmlContent: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #dc3545; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; background: #f9f9f9; }
+              .alert-box { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0; }
+              .info-box { background: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
+              .footer { text-align: center; margin-top: 20px; color: #666; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🚨 ALERTE DE SÉCURITÉ</h1>
+              </div>
+              <div class="content">
+                <div class="alert-box">
+                  <h3>🚨 ${reason || 'Connexion suspecte détectée'}</h3>
+                  <p>Une connexion inhabituelle a été détectée sur le compte d'un vendeur.</p>
+                </div>
+                
+                <div class="info-box">
+                  <h3>Compte concerné</h3>
+                  <p><strong>👤 Vendeur:</strong> ${name}</p>
+                  <p><strong>📧 Email:</strong> ${email}</p>
+                </div>
+                
+                <div class="info-box">
+                  <h3>Informations de connexion</h3>
+                  <p><strong>🕐 Date/heure:</strong> ${moment().format('DD/MM/YYYY à HH:mm:ss')}</p>
+                  <p><strong>🌐 IP:</strong> ${ip}</p>
+                  <p><strong>📍 Raison:</strong> ${reason || 'Comportement inhabituel'}</p>
+                  <p><strong>💻 Appareil:</strong> ${device_type || 'Inconnu'}</p>
+                </div>
+                
+                <div class="alert-box">
+                  <h3>Actions recommandées</h3>
+                  <ul>
+                    <li>Vérifier l'activité récente du compte</li>
+                    <li>Contacter le vendeur pour confirmation</li>
+                    <li>Changer le mot de passe si nécessaire</li>
+                    <li>Désactiver temporairement le compte en cas de doute</li>
+                  </ul>
+                </div>
+                
+                <div class="footer">
+                  <p>Système de sécurité automatique</p>
+                </div>
+              </div>
+            </div>
+          </body>
+          </html>
+        `,
+        tags: ['alerte', 'securite']
       };
-      sendSmtpEmail.to = [{
-        email: process.env.ADMIN_EMAIL,
-        name: 'Administrateur'
-      }];
-      sendSmtpEmail.subject = `🚨 ALERTE - Connexion suspecte - ${name}`;
-      sendSmtpEmail.htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #dc3545; color: white; padding: 20px; text-align: center; }
-            .content { padding: 20px; background: #f9f9f9; }
-            .alert-box { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0; }
-            .info-box { background: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
-            .footer { text-align: center; margin-top: 20px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🚨 ALERTE DE SÉCURITÉ</h1>
-            </div>
-            <div class="content">
-              <div class="alert-box">
-                <h3>🚨 ${reason || 'Connexion suspecte détectée'}</h3>
-                <p>Une connexion inhabituelle a été détectée sur le compte d'un vendeur.</p>
-              </div>
-              
-              <div class="info-box">
-                <h3>Compte concerné</h3>
-                <p><strong>👤 Vendeur:</strong> ${name}</p>
-                <p><strong>📧 Email:</strong> ${email}</p>
-              </div>
-              
-              <div class="info-box">
-                <h3>Informations de connexion</h3>
-                <p><strong>🕐 Date/heure:</strong> ${moment().format('DD/MM/YYYY à HH:mm:ss')}</p>
-                <p><strong>🌐 IP:</strong> ${ip}</p>
-                <p><strong>📍 Raison:</strong> ${reason || 'Comportement inhabituel'}</p>
-                <p><strong>💻 Appareil:</strong> ${device_type || 'Inconnu'}</p>
-              </div>
-              
-              <div class="alert-box">
-                <h3>Actions recommandées</h3>
-                <ul>
-                  <li>Vérifier l'activité récente du compte</li>
-                  <li>Contacter le vendeur pour confirmation</li>
-                  <li>Changer le mot de passe si nécessaire</li>
-                  <li>Désactiver temporairement le compte en cas de doute</li>
-                </ul>
-              </div>
-              
-              <div class="footer">
-                <p>Système de sécurité automatique</p>
-              </div>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
 
-      await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+      const response = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
       console.log('✅ Alerte de connexion suspecte envoyée');
+      return response;
       
     } catch (error) {
       console.error('❌ Erreur alerte connexion suspecte:', error);
+      throw error;
     }
   }
 
+  /**
+   * Envoie une notification de modification de vente
+   */
   async sendSaleUpdateNotification(saleData) {
     try {
       const { invoice_number, customer_name, total_amount, items, seller_name, modified_by } = saleData;
@@ -657,75 +718,121 @@ class EmailService {
         </tr>`
       ).join('');
 
-      const sendSmtpEmail = new brevo.SendSmtpEmail();
-      sendSmtpEmail.sender = {
-        email: process.env.BREVO_SENDER_EMAIL,
-        name: process.env.BREVO_SENDER_NAME
-      };
-      sendSmtpEmail.to = [{
-        email: process.env.ADMIN_EMAIL,
-        name: 'Administrateur'
-      }];
-      sendSmtpEmail.subject = `Vente modifiée - Facture ${invoice_number}`;
-      sendSmtpEmail.htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #FF6B00; color: white; padding: 20px; text-align: center; }
-            .content { padding: 20px; background: #f9f9f9; }
-            .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            .table th, .table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-            .table th { background: #FF6B00; color: white; }
-            .info-box { background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 10px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>VENTE MODIFIÉE</h1>
-            </div>
-            <div class="content">
-              <div class="info-box">
-                <p><strong>⚠️ Cette vente a été modifiée par:</strong> ${modified_by}</p>
+      const sendSmtpEmail = {
+        sender: {
+          email: process.env.BREVO_SENDER_EMAIL,
+          name: process.env.BREVO_SENDER_NAME || 'JHY Solutions'
+        },
+        to: [{
+          email: process.env.ADMIN_EMAIL,
+          name: 'Administrateur'
+        }],
+        subject: `Vente modifiée - Facture ${invoice_number}`,
+        htmlContent: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #FF6B00; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; background: #f9f9f9; }
+              .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+              .table th, .table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+              .table th { background: #FF6B00; color: white; }
+              .info-box { background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 10px 0; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>VENTE MODIFIÉE</h1>
               </div>
-              
-              <p><strong>Facture:</strong> ${invoice_number}</p>
-              <p><strong>Client:</strong> ${customer_name}</p>
-              <p><strong>Vendeur original:</strong> ${seller_name}</p>
-              <p><strong>Nouveau montant total:</strong> ${total_amount}€</p>
-              
-              <h3>Articles modifiés:</h3>
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Produit</th>
-                    <th>Quantité</th>
-                    <th>Prix unitaire</th>
-                    <th>Sous-total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${itemsList}
-                </tbody>
-              </table>
-              
-              <p><em>Modification effectuée le ${new Date().toLocaleString('fr-FR')}</em></p>
+              <div class="content">
+                <div class="info-box">
+                  <p><strong>⚠️ Cette vente a été modifiée par:</strong> ${modified_by}</p>
+                </div>
+                
+                <p><strong>Facture:</strong> ${invoice_number}</p>
+                <p><strong>Client:</strong> ${customer_name}</p>
+                <p><strong>Vendeur original:</strong> ${seller_name}</p>
+                <p><strong>Nouveau montant total:</strong> ${total_amount}€</p>
+                
+                <h3>Articles modifiés:</h3>
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Produit</th>
+                      <th>Quantité</th>
+                      <th>Prix unitaire</th>
+                      <th>Sous-total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${itemsList}
+                  </tbody>
+                </table>
+                
+                <p><em>Modification effectuée le ${new Date().toLocaleString('fr-FR')}</em></p>
+              </div>
             </div>
-          </div>
-        </body>
-        </html>
-      `;
+          </body>
+          </html>
+        `,
+        tags: ['modification', 'vente']
+      };
 
-      await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+      const response = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
       console.log('✅ Notification de modification envoyée');
+      return response;
       
     } catch (error) {
       console.error('❌ Erreur notification modification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Méthode de test pour vérifier la configuration
+   */
+  async sendTestEmail() {
+    try {
+      console.log('🧪 Test du service Brevo...');
+      
+      const sendSmtpEmail = {
+        sender: {
+          email: process.env.BREVO_SENDER_EMAIL,
+          name: process.env.BREVO_SENDER_NAME || 'Test JHY Solutions'
+        },
+        to: [{
+          email: process.env.ADMIN_EMAIL,
+          name: 'Administrateur Test'
+        }],
+        subject: 'Test Service Brevo - ' + new Date().toLocaleString('fr-FR'),
+        htmlContent: `
+          <html>
+            <body>
+              <h1>Test du Service Brevo</h1>
+              <p>Si vous recevez cet email, le service Brevo est correctement configuré.</p>
+              <p><strong>Date:</strong> ${new Date().toLocaleString('fr-FR')}</p>
+              <p><strong>Service:</strong> JHY Solutions</p>
+            </body>
+          </html>
+        `,
+        tags: ['test']
+      };
+
+      const response = await this.apiInstance.sendTransacEmail(sendSmtpEmail);
+      console.log('✅ Email test envoyé avec succès');
+      return response;
+      
+    } catch (error) {
+      console.error('❌ Échec de l\'email test:', error);
+      throw error;
     }
   }
 }
 
-module.exports = new EmailService();
+// Export comme instance unique
+const emailService = new EmailService();
+module.exports = emailService;
